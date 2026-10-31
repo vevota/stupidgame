@@ -128,7 +128,10 @@ namespace StupidGame
         {
             if (col.transform.IsChildOf(transform)) return false;
             if (Held != null && col.transform.IsChildOf(Held.transform)) return false;
-            if (Aimed != null && col.transform.IsChildOf(Aimed.transform)) return false;
+
+            // Do NOT exclude Aimed here. Rejecting the prop we are already aiming at makes
+            // the aim latch flip on/off every frame (visible as a flickering highlight) and
+            // leaves Aimed null on half the frames, so clicking does nothing.
             return true;
         }
 

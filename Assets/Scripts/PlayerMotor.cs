@@ -65,7 +65,10 @@ namespace StupidGame
             var kb = Keyboard.current;
             if (kb == null) return;
 
-            if (kb.spaceKey.wasPressedThisFrame) _buffer = jumpBufferTime;
+            // Bunny hop: holding jump re-arms the buffer every frame, so the moment you
+            // touch ground the next jump fires. No double jumps, because jumping zeroes
+            // coyote and coyote is only refilled while grounded.
+            if (kb.spaceKey.isPressed) _buffer = jumpBufferTime;
             _buffer -= Time.deltaTime;
             _coyote -= Time.deltaTime;
 
@@ -82,10 +85,14 @@ namespace StupidGame
         void FixedUpdate()
         {
             Grounded = ProbeGround();
-            if (Grounded) _coyote = coyoteTime;
+            Vector3 vel = _rb.linearVelocity;
+
+            // Refill coyote only when grounded AND not rising. With bunny hop the jump buffer
+            // is re-armed every frame, so without this the held key re-jumps during the first
+            // frames of ascent while the ground probe still reports contact.
+            if (Grounded && vel.y <= 0.01f) _coyote = coyoteTime;
 
             Vector3 wish = WishDirection();
-            Vector3 vel = _rb.linearVelocity;
             Vector3 horiz = new Vector3(vel.x, 0f, vel.z);
 
             float speed = IsCrouching ? crouchSpeed : (IsSprinting ? sprintSpeed : walkSpeed);

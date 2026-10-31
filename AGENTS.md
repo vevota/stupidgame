@@ -56,7 +56,11 @@ closed, because the editor holds a lock on the project.
 - **Held prop orientation**: local +X along aim, local +Y up (`HoldOrientation.For`). Props
   are authored long-axis-on-X, thin-axis-on-Y so the flat face stays up and is standable.
 - **Aim assist** is a 0.18 m sphere cast after the thin ray; a thin ray alone makes small
-  props feel broken.
+  props feel broken. Never exclude the currently-aimed prop from target validation — doing
+  so makes the aim latch flip every frame (flickering highlight, unclickable props).
+- **Bunny hop**: holding Space re-arms the jump buffer every frame, so you auto-jump on
+  landing. Coyote time refills only when grounded *and not rising*, otherwise a held key
+  re-jumps during the first frames of ascent.
 
 - **Magnetism is physical**: only props with `magnetic: true` (visible metal) can be grabbed
   or frozen. Wood without metal is scenery you can carry, never float.
