@@ -14,13 +14,14 @@ canyon to cross. Climb to the mountain.
 ## Commands
 
 ```sh
-./tools/verify.sh     # batchmode compile, greps errors out of the log
+./tools/cscheck.sh    # 2s C# compile check against Unity's refs — works with the editor OPEN
+./tools/verify.sh     # full batchmode compile, greps errors out of the log
 ./tools/build.sh      # Linux player -> build/stupidgame.x86_64
 ./tools/shot.sh 4     # run player under xvfb, screenshot after 4s
 ```
 
-The editor holds a lock on the project. `verify.sh` / `build.sh` / `shot.sh` fail while it
-is open — close the editor, run them, reopen it to play.
+`cscheck.sh` is the fast loop — use it after every edit. The other three need the editor
+closed, because the editor holds a lock on the project.
 
 ## Hard rules
 
@@ -36,6 +37,19 @@ is open — close the editor, run them, reopen it to play.
 6. Update "Current slice" below whenever it changes.
 
 ## Decisions (locked unless we revisit)
+
+- **First person.** Camera is a child of the player; `FirstPersonLook` owns yaw (applied to
+  the player) and pitch (applied to the camera). The player mesh is disabled — the capsule
+  exists only as a collider.
+- **Viewmodels render on layer 8** through a second camera that clears depth only. Raycasts
+  must always exclude `1 << ItemController.ViewmodelLayer`, or you will grab the stick itself.
+- **Items**: `ItemController` holds fist/magneto. `1` fists, `2` magneto, wheel cycles.
+  Switching items calls `MagnetoStick.CancelHold()`, so the plank is dropped, never left
+  attached to a disabled stick. Fists are deliberately an empty viewmodel.
+- **Held prop orientation**: local +X along aim, local +Y up (`HoldOrientation.For`). Props
+  are authored long-axis-on-X, thin-axis-on-Y so the flat face stays up and is standable.
+- **Aim assist** is a 0.18 m sphere cast after the thin ray; a thin ray alone makes small
+  props feel broken.
 
 - **Magnetism is physical**: only props with `magnetic: true` (visible metal) can be grabbed
   or frozen. Wood without metal is scenery you can carry, never float.
@@ -57,19 +71,27 @@ is open — close the editor, run them, reopen it to play.
 | `Assets/Scripts/Prop.cs` | hold / freeze / throw / tint |
 | `Assets/Scripts/MagnetoStick.cs` | aim, grab, stasis, throw |
 | `Assets/Scripts/PlayerMotor.cs` | rigidbody controller, ground probe, coyote/jump buffer |
-| `Assets/Scripts/FollowCamera.cs` | third-person orbit |
+| `Assets/Scripts/FirstPersonLook.cs` | mouse look, cursor lock |
+| `Assets/Scripts/ItemSystem.cs` | fist/magneto slots + procedural viewmodels |
+| `Assets/Scripts/HoldOrientation.cs` | held-prop orientation convention |
+| `Assets/Scripts/FollowCamera.cs` | UNUSED, kept for a possible third-person toggle |
 | `Assets/Scripts/Hud.cs` | readouts + crosshair |
 | `Assets/Scripts/ScreenshotCapture.cs` | `-screenshot` / `-quitAfter` for headless capture |
 | `Assets/Resources/levels/lvl01.json` | the level |
 
+## Controls
+
+WASD move · Space jump · 1 fists · 2 magneto · wheel cycle items · LMB grab/drop ·
+RMB freeze/unfreeze · F throw · R respawn · Esc free cursor, click to recapture.
+
 ## Current slice
 
-**Slice 1 (in progress): the loop.** Start plateau -> 24 m canyon -> far plateau -> mountain
-steps -> goal. Two planks on the start plateau. Falling drops you to the canyon floor and a
-staircase back up. No bridging is required yet — this slice only proves the loop, the
-camera, and the fall-back path.
+**Slice 2 (in progress): grab/carry/throw end to end, first person, item slots.**
+Slice 1 (the loop: plateau -> 24 m canyon -> stairs back up -> far plateau -> goal) is built.
+Two planks sit on the start plateau.
 
-Next: **slice 2**, grab/carry/throw works end to end.
+Next: **slice 3**, midair freeze + stand on it + re-grab, i.e. leapfrog across the canyon.
+This is the go/no-go for the whole game.
 
 Then: **slice 3**, midair freeze + stand on it + re-grab, i.e. leapfrog across the canyon.
 This is the go/no-go for the whole game.

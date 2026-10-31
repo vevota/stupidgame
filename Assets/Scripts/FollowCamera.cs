@@ -1,9 +1,10 @@
+// SUPERSEDED: this was the third-person orbit camera for slice 1.
+// The game is first person now — see FirstPersonLook.cs.
+// Kept (not deleted) in case we want a third-person toggle later.
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace StupidGame
 {
-    /// <summary>Third-person orbit camera. Mouse look is only active when the cursor is locked.</summary>
     public class FollowCamera : MonoBehaviour
     {
         public Transform target;
@@ -21,8 +22,6 @@ namespace StupidGame
         public void Init(Transform t)
         {
             target = t;
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
             Snap();
         }
 
@@ -38,35 +37,7 @@ namespace StupidGame
 
         Vector3 DesiredPosition()
         {
-            Quaternion rot = Quaternion.Euler(pitch, yaw, 0f);
-            return Pivot() + rot * Vector3.back * distance;
-        }
-
-        void Update()
-        {
-            var kb = Keyboard.current;
-            if (kb != null && kb.escapeKey.wasPressedThisFrame)
-            {
-                Cursor.lockState = CursorLockMode.None;
-                Cursor.visible = true;
-            }
-
-            if (Cursor.lockState != CursorLockMode.Locked)
-            {
-                var m0 = Mouse.current;
-                if (m0 != null && (m0.leftButton.wasPressedThisFrame || m0.rightButton.wasPressedThisFrame))
-                {
-                    Cursor.lockState = CursorLockMode.Locked;
-                    Cursor.visible = false;
-                }
-                return;
-            }
-
-            var m = Mouse.current;
-            if (m == null) return;
-            Vector2 d = m.delta.ReadValue();
-            yaw += d.x * sensitivity;
-            pitch = Mathf.Clamp(pitch - d.y * sensitivity, minPitch, maxPitch);
+            return Pivot() + Quaternion.Euler(pitch, yaw, 0f) * Vector3.back * distance;
         }
 
         void LateUpdate()

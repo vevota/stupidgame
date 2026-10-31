@@ -4,14 +4,14 @@ using UnityEngine.InputSystem;
 namespace StupidGame
 {
     /// <summary>
-    /// Deliberately stiff, low-air-control platformer body. Foddian feel comes from
-    /// committed jumps: once you are airborne there is very little you can do.
+    /// Stiff first-person platformer body. Foddian feel comes from committed jumps:
+    /// once airborne there is almost nothing you can do about it.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     [RequireComponent(typeof(CapsuleCollider))]
     public class PlayerMotor : MonoBehaviour
     {
-        public float moveSpeed = 6.5f;
+        public float moveSpeed = 6.0f;
         public float groundAccel = 80f;
         public float airControl = 0.25f;
         public float jumpHeight = 2.1f;
@@ -32,10 +32,19 @@ namespace StupidGame
         {
             _rb = GetComponent<Rigidbody>();
             _col = GetComponent<CapsuleCollider>();
+
             _rb.mass = 1f;
             _rb.constraints = RigidbodyConstraints.FreezeRotation;
             _rb.interpolation = RigidbodyInterpolation.Interpolate;
             _rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+
+            // First person: the body is only a collider, never a mesh.
+            _col.radius = 0.4f;
+            _col.height = 1.8f;
+            _col.center = Vector3.zero;
+
+            var mesh = GetComponent<Renderer>();
+            if (mesh != null) mesh.enabled = false;
         }
 
         void Update()
@@ -75,12 +84,6 @@ namespace StupidGame
             }
 
             _rb.linearVelocity = new Vector3(horiz.x, y, horiz.z);
-
-            if (wish.sqrMagnitude > 0.01f)
-            {
-                var face = Quaternion.LookRotation(wish, Vector3.up);
-                _rb.MoveRotation(Quaternion.Slerp(_rb.rotation, face, 14f * Time.fixedDeltaTime));
-            }
         }
 
         Vector3 WishDirection()

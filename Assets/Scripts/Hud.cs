@@ -7,17 +7,19 @@ namespace StupidGame
         GameRoot _root;
         PlayerMotor _player;
         MagnetoStick _stick;
+        ItemController _items;
 
         GUIStyle _style;
         GUIStyle _small;
         string _flash;
         float _flashUntil;
 
-        public void Init(GameRoot root, PlayerMotor player, MagnetoStick stick)
+        public void Init(GameRoot root, PlayerMotor player, MagnetoStick stick, ItemController items)
         {
             _root = root;
             _player = player;
             _stick = stick;
+            _items = items;
         }
 
         public void Flash(string message)
@@ -45,13 +47,20 @@ namespace StupidGame
                 else if (_stick.Aimed != null) held = "aim: " + _stick.Aimed.name;
             }
 
-            string text = $"{_root.level.name}   t={_root.runTime:0.0}s   falls={_root.falls}\nheld={held}   grounded={_player.Grounded}";
+            string item = _items != null ? _items.CurrentName : "-";
+            bool lockFail = Cursor.lockState != CursorLockMode.Locked;
+
+            string text =
+                $"{_root.level.name}   t={_root.runTime:0.0}s   falls={_root.falls}\n" +
+                $"item={item}   held={held}   grounded={_player.Grounded}" +
+                (lockFail ? "\n\n[click to capture mouse]" : "");
+
             if (_root.reachedGoal) text += "\n\nGOAL REACHED";
             if (!string.IsNullOrEmpty(_flash) && Time.time < _flashUntil) text += "\n\n" + _flash;
 
-            GUI.Label(new Rect(16f, 12f, 700f, 130f), text, _style);
+            GUI.Label(new Rect(16f, 12f, 760f, 140f), text, _style);
 
-            if (Cursor.lockState == CursorLockMode.Locked)
+            if (!lockFail)
             {
                 GUI.color = new Color(1f, 1f, 1f, 0.75f);
                 GUI.DrawTexture(new Rect(Screen.width * 0.5f - 2f, Screen.height * 0.5f - 2f, 4f, 4f), Texture2D.whiteTexture);
@@ -59,8 +68,8 @@ namespace StupidGame
             }
 
             GUI.Label(
-                new Rect(16f, Screen.height - 34f, 1000f, 28f),
-                "WASD move   Space jump   LMB grab/drop   RMB freeze/unfreeze   F throw   R respawn   Esc free cursor",
+                new Rect(16f, Screen.height - 34f, 1100f, 28f),
+                "WASD move   Space jump   1 fists   2 magneto   wheel cycle   LMB grab/drop   RMB freeze   F throw   R respawn   Esc free cursor",
                 _small);
         }
     }

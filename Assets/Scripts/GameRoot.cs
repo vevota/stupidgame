@@ -3,16 +3,14 @@ using UnityEngine.InputSystem;
 
 namespace StupidGame
 {
-    /// <summary>
-    /// Makes Play work in any scene without touching scene files.
-    /// </summary>
+    /// <summary>Boots the game in any scene without touching scene files.</summary>
     public static class Bootstrap
     {
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void AutoStart()
         {
             if (!Application.isPlaying) return;
-            if (Object.FindFirstObjectByType<GameRoot>() != null) return;
+            if (Object.FindAnyObjectByType<GameRoot>() != null) return;
             new GameObject("StupidGame").AddComponent<GameRoot>();
         }
     }
@@ -21,6 +19,7 @@ namespace StupidGame
     {
         public LevelData level;
         public PlayerMotor player;
+        public ItemController items;
         public int falls;
         public bool reachedGoal;
         public float runTime;
@@ -53,14 +52,18 @@ namespace StupidGame
             LevelLoader.Build(level);
 
             player = SpawnPlayer(level.start.V);
-            var cam = EnsureCamera(player.transform);
+            var cam = SetupFirstPersonCamera(player.transform);
             player.CameraTransform = cam.transform;
 
             var stick = player.gameObject.AddComponent<MagnetoStick>();
-            stick.Init(cam, player);
+            stick.Init(cam);
+
+            items = player.gameObject.AddComponent<ItemController>();
+            items.Init(cam, stick);
+            stick.Used += () => items.Kick(1f);
 
             _hud = gameObject.AddComponent<Hud>();
-            _hud.Init(this, player, stick);
+            _hud.Init(this, player, stick, items);
 
             BuildGoal(level.goal.V);
             gameObject.AddComponent<ScreenshotCapture>();
@@ -100,8 +103,8 @@ namespace StupidGame
             var go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             go.name = "Player";
             go.transform.position = pos;
-            go.transform.localScale = new Vector3(0.8f, 0.9f, 0.8f);
-            go.GetComponent<Renderer>().sharedMaterial = Materials.Get("player");
+            // Face the canyon (+X) so the first thing you see is the gap.
+            go.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
 
             var rb = go.AddComponent<Rigidbody>();
             rb.mass = 1f;
@@ -109,7 +112,7 @@ namespace StupidGame
             return go.AddComponent<PlayerMotor>();
         }
 
-        Camera EnsureCamera(Transform target)
+        Camera SetupFirstPersonCamera(Transform playerTransform)
         {
             var cam = Camera.main;
             if (cam == null)
@@ -120,9 +123,29 @@ namespace StupidGame
                 go.AddComponent<AudioListener>();
             }
 
-            var follow = cam.GetComponent<FollowCamera>();
-            if (follow == null) follow = cam.gameObject.AddComponent<FollowCamera>();
-            follow.Init(target);
+            cam.transform.SetParent(playerTransform, false);
+            cam.transform.localPosition = new Vector3(0f, 0.68f, 0f);
+            cam.transform.localRotation = Quaternion.identity;
+            cam.fieldOfView = 75f;
+            cam.nearClipPlane = 0.03f;
+            cam.cullingMask = ~(1 << ItemController.ViewmodelLayer);
+
+            var look = cam.GetComponent<FirstPersonLook>();
+            if (look == null) look = cam.gameObject.AddComponent<FirstPersonLook>();
+            look.Init(playerTransform);
+
+            // Second camera draws only the viewmodel layer, clearing depth so it sits on top
+            // of the world without ever clipping into it.
+            var vmGo = new GameObject("ViewModelCamera");
+            vmGo.transform.SetParent(cam.transform, false);
+            var vm = vmGo.AddComponent<Camera>();
+            vm.clearFlags = CameraClearFlags.Depth;
+            vm.cullingMask = 1 << ItemController.ViewmodelLayer;
+            vm.depth = 1;
+            vm.fieldOfView = 55f;
+            vm.nearClipPlane = 0.01f;
+            vm.farClipPlane = 5f;
+
             return cam;
         }
 
