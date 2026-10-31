@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Rendering.Universal;
 
 namespace StupidGame
 {
@@ -52,7 +53,7 @@ namespace StupidGame
             LevelLoader.Build(level);
 
             player = SpawnPlayer(level.start.V);
-            var cam = SetupFirstPersonCamera(player.transform);
+            var cam = SetupFirstPersonCamera(player);
             player.CameraTransform = cam.transform;
 
             var stick = player.gameObject.AddComponent<MagnetoStick>();
@@ -112,7 +113,7 @@ namespace StupidGame
             return go.AddComponent<PlayerMotor>();
         }
 
-        Camera SetupFirstPersonCamera(Transform playerTransform)
+        Camera SetupFirstPersonCamera(PlayerMotor motor)
         {
             var cam = Camera.main;
             if (cam == null)
@@ -123,28 +124,41 @@ namespace StupidGame
                 go.AddComponent<AudioListener>();
             }
 
-            cam.transform.SetParent(playerTransform, false);
-            cam.transform.localPosition = new Vector3(0f, 0.68f, 0f);
-            cam.transform.localRotation = Quaternion.identity;
+            // The look component positions this camera every frame, so it must not be a
+            // child of the player Rigidbody.
+            cam.transform.SetParent(null, true);
             cam.fieldOfView = 75f;
             cam.nearClipPlane = 0.03f;
+            cam.farClipPlane = 400f;
             cam.cullingMask = ~(1 << ItemController.ViewmodelLayer);
 
             var look = cam.GetComponent<FirstPersonLook>();
             if (look == null) look = cam.gameObject.AddComponent<FirstPersonLook>();
-            look.Init(playerTransform);
+            look.Init(motor, 90f);
 
-            // Second camera draws only the viewmodel layer, clearing depth so it sits on top
-            // of the world without ever clipping into it.
+            // Viewmodel camera. URP base cameras always clear the colour buffer, so this
+            // MUST be an overlay camera in the main camera's stack — otherwise it paints
+            // over the whole world and you are left with a stick on an empty screen.
             var vmGo = new GameObject("ViewModelCamera");
             vmGo.transform.SetParent(cam.transform, false);
             var vm = vmGo.AddComponent<Camera>();
             vm.clearFlags = CameraClearFlags.Depth;
             vm.cullingMask = 1 << ItemController.ViewmodelLayer;
-            vm.depth = 1;
             vm.fieldOfView = 55f;
             vm.nearClipPlane = 0.01f;
             vm.farClipPlane = 5f;
+
+            var vmData = vmGo.GetComponent<UniversalAdditionalCameraData>();
+            if (vmData == null) vmData = vmGo.AddComponent<UniversalAdditionalCameraData>();
+            vmData.renderType = CameraRenderType.Overlay;
+            vmData.renderPostProcessing = false;
+
+            var mainData = cam.GetUniversalAdditionalCameraData();
+            if (mainData != null)
+            {
+                mainData.renderType = CameraRenderType.Base;
+                if (!mainData.cameraStack.Contains(vm)) mainData.cameraStack.Add(vm);
+            }
 
             return cam;
         }

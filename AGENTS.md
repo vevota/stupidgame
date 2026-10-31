@@ -43,6 +43,13 @@ closed, because the editor holds a lock on the project.
   exists only as a collider.
 - **Viewmodels render on layer 8** through a second camera that clears depth only. Raycasts
   must always exclude `1 << ItemController.ViewmodelLayer`, or you will grab the stick itself.
+  That second camera must be a URP **Overlay** camera added to the main camera's
+  `cameraStack`. A second *base* camera always clears the colour buffer in URP and blanks
+  the world even with `ClearFlags.Depth`.
+- **The camera is never parented to the player.** Physics interpolation overwrites rotation
+  written to an interpolated Rigidbody's transform, which silently kills mouse look. The
+  look script sets the camera's world position/rotation each `LateUpdate` from the player's
+  interpolated position.
 - **Items**: `ItemController` holds fist/magneto. `1` fists, `2` magneto, wheel cycles.
   Switching items calls `MagnetoStick.CancelHold()`, so the plank is dropped, never left
   attached to a disabled stick. Fists are deliberately an empty viewmodel.
@@ -81,8 +88,9 @@ closed, because the editor holds a lock on the project.
 
 ## Controls
 
-WASD move · Space jump · 1 fists · 2 magneto · wheel cycle items · LMB grab/drop ·
-RMB freeze/unfreeze · F throw · R respawn · Esc free cursor, click to recapture.
+WASD move · Shift sprint · Ctrl crouch · Space jump · 1 fists · 2 magneto · wheel cycle
+items · LMB grab/drop · RMB freeze/unfreeze · F throw · R respawn · Esc free mouse, click
+to recapture.
 
 ## Current slice
 

@@ -6,12 +6,15 @@ namespace StupidGame
     /// <summary>
     /// Stiff first-person platformer body. Foddian feel comes from committed jumps:
     /// once airborne there is almost nothing you can do about it.
+    /// Shift sprints, Ctrl crouches.
     /// </summary>
     [RequireComponent(typeof(Rigidbody))]
     [RequireComponent(typeof(CapsuleCollider))]
     public class PlayerMotor : MonoBehaviour
     {
-        public float moveSpeed = 6.0f;
+        public float walkSpeed = 6.0f;
+        public float sprintSpeed = 9.5f;
+        public float crouchSpeed = 3.0f;
         public float groundAccel = 80f;
         public float airControl = 0.25f;
         public float jumpHeight = 2.1f;
@@ -19,8 +22,17 @@ namespace StupidGame
         public float jumpBufferTime = 0.12f;
         public float fallMultiplier = 1.7f;
 
+        public float standHeight = 1.8f;
+        public float crouchHeight = 1.2f;
+        public float standEye = 1.55f;
+        public float crouchEye = 1.05f;
+        public float eyeLerp = 14f;
+
         public Transform CameraTransform { get; set; }
         public bool Grounded { get; private set; }
+        public bool IsCrouching { get; private set; }
+        public bool IsSprinting { get; private set; }
+        public float EyeHeight { get; private set; }
         public Vector3 Velocity => _rb.linearVelocity;
 
         Rigidbody _rb;
@@ -38,10 +50,11 @@ namespace StupidGame
             _rb.interpolation = RigidbodyInterpolation.Interpolate;
             _rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
-            // First person: the body is only a collider, never a mesh.
             _col.radius = 0.4f;
-            _col.height = 1.8f;
+            _col.height = standHeight;
             _col.center = Vector3.zero;
+
+            EyeHeight = standEye;
 
             var mesh = GetComponent<Renderer>();
             if (mesh != null) mesh.enabled = false;
@@ -55,6 +68,15 @@ namespace StupidGame
             if (kb.spaceKey.wasPressedThisFrame) _buffer = jumpBufferTime;
             _buffer -= Time.deltaTime;
             _coyote -= Time.deltaTime;
+
+            bool wantsCrouch = kb.leftCtrlKey.isPressed || kb.rightCtrlKey.isPressed;
+            if (wantsCrouch) SetCrouch(true);
+            else if (IsCrouching && CanStand()) SetCrouch(false);
+
+            IsSprinting = kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed;
+
+            float targetEye = IsCrouching ? crouchEye : standEye;
+            EyeHeight = Mathf.Lerp(EyeHeight, targetEye, 1f - Mathf.Exp(-eyeLerp * Time.deltaTime));
         }
 
         void FixedUpdate()
@@ -66,12 +88,13 @@ namespace StupidGame
             Vector3 vel = _rb.linearVelocity;
             Vector3 horiz = new Vector3(vel.x, 0f, vel.z);
 
+            float speed = IsCrouching ? crouchSpeed : (IsSprinting ? sprintSpeed : walkSpeed);
             float accel = Grounded ? groundAccel : groundAccel * airControl;
-            horiz = Vector3.MoveTowards(horiz, wish * moveSpeed, accel * Time.fixedDeltaTime);
+            horiz = Vector3.MoveTowards(horiz, wish * speed, accel * Time.fixedDeltaTime);
 
             float y = vel.y;
 
-            if (_buffer > 0f && _coyote > 0f)
+            if (_buffer > 0f && _coyote > 0f && !IsCrouching)
             {
                 _buffer = 0f;
                 _coyote = 0f;
@@ -84,6 +107,29 @@ namespace StupidGame
             }
 
             _rb.linearVelocity = new Vector3(horiz.x, y, horiz.z);
+        }
+
+        void SetCrouch(bool on)
+        {
+            if (on == IsCrouching) return;
+            IsCrouching = on;
+
+            float h = on ? crouchHeight : standHeight;
+            _col.height = h;
+            // Keep the feet planted: the capsule bottom must not move.
+            _col.center = new Vector3(0f, -(standHeight - h) * 0.5f, 0f);
+        }
+
+        bool CanStand()
+        {
+            float r = _col.radius * 0.9f;
+            Vector3 bottom = transform.position + Vector3.up * (-standHeight * 0.5f + r);
+            Vector3 top = transform.position + Vector3.up * (standHeight * 0.5f - r);
+
+            _col.enabled = false;
+            bool free = !Physics.CheckCapsule(bottom, top, r, ~0, QueryTriggerInteraction.Ignore);
+            _col.enabled = true;
+            return free;
         }
 
         Vector3 WishDirection()

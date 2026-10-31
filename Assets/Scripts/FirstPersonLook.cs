@@ -4,28 +4,30 @@ using UnityEngine.InputSystem;
 namespace StupidGame
 {
     /// <summary>
-    /// First-person look. Yaw drives the player body, pitch drives the camera.
-    /// The camera is a child of the player, so this owns the camera's local rotation.
+    /// First-person look. The camera is NOT a child of the player: it is positioned every
+    /// frame from the player's interpolated position. Parenting it to an interpolated
+    /// Rigidbody causes physics interpolation to fight the yaw, and the camera stops turning.
     /// </summary>
     public class FirstPersonLook : MonoBehaviour
     {
+        public PlayerMotor motor;
         public Transform player;
         public float sensitivity = 0.12f;
         public float minPitch = -85f;
         public float maxPitch = 85f;
 
-        float _yaw;
+        float _yaw = 90f;
         float _pitch;
 
-        public float Yaw => _yaw;
-
-        public void Init(Transform playerTransform)
+        public void Init(PlayerMotor playerMotor, float startYaw)
         {
-            player = playerTransform;
-            _yaw = player.eulerAngles.y;
+            motor = playerMotor;
+            player = playerMotor != null ? playerMotor.transform : null;
+            _yaw = startYaw;
             _pitch = 0f;
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
+            Apply();
         }
 
         void Update()
@@ -58,8 +60,16 @@ namespace StupidGame
 
         void LateUpdate()
         {
-            if (player != null) player.rotation = Quaternion.Euler(0f, _yaw, 0f);
-            transform.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
+            Apply();
+        }
+
+        void Apply()
+        {
+            if (player == null) return;
+
+            float eye = motor != null ? motor.EyeHeight : 1.55f;
+            transform.position = player.position + Vector3.up * eye;
+            transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
         }
     }
 }
