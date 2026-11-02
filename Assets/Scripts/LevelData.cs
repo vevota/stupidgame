@@ -35,6 +35,7 @@ namespace StupidGame
         public string name = "prop";
         public Vec3 pos;
         public Vec3 size = new Vec3(3f, 0.25f, 0.9f);
+        public float rotY = 0f;
         public float mass = 7f;
         public bool magnetic = true;
     }

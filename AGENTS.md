@@ -53,13 +53,21 @@ closed, because the editor holds a lock on the project.
 - **Items**: `ItemController` holds fist/magneto. `1` fists, `2` magneto, wheel cycles.
   Switching items calls `MagnetoStick.CancelHold()`, so the plank is dropped, never left
   attached to a disabled stick. Fists are deliberately an empty viewmodel.
-- **Held props are anchored at the clicked point**, not at their centre. `_grabOffsetWorld`
-  is captured at pickup and the prop is placed so that exact point sits `holdDistance` in
-  front of the camera. Grabbing a plank by its end must look like grabbing it by its end.
-- **Held rotation follows yaw only.** Pitching the view must never tilt a held plank, or you
-  cannot place a flat platform. Do not re-introduce an "align the long axis to the aim"
-  behaviour (`HoldOrientation.For` is superseded) — it is what made pickup look like it
-  snapped to the short side.
+- **Held props are anchored AND pivoted at the clicked point.** `_localAnchor` is captured
+  at pickup and the prop is placed so that exact point sits `holdDistance` in front of the
+  camera. The grab point is a real pivot: grabbing a plank by its end must swing differently
+  from grabbing it in the middle.
+- **Two grip modes.** Default `rigid` attaches the prop to the camera fully (pitch included),
+  so the pivot behaves physically. `V` toggles `level`, which forces the prop horizontal and
+  follows yaw only — that is the mode for placing flat platforms. HUD shows `grip=`.
+- **Never re-orient a held prop to the aim.** Forcing the long axis along the view is what
+  made every pickup look like a short-side grab (`HoldOrientation.For`, now superseded).
+  Rotation comes from the camera plus `Q`/`E` spin only.
+- **Grab offset is shown in the HUD** (`grab=1.50m`) and logged on grab. If it reads 0.00 the
+  hit point is not reaching `Grab()` and the anchor is silently falling back to the centre.
+- **Props accept `rotY` in the level JSON.** When testing grab-point behaviour, make sure the
+  plank's long axis is not aligned with your view — translation along the view axis is
+  invisible in first person and looks like "nothing changed".
 - **Ignore collision while held.** A plank grabbed off-centre overlaps your capsule; as a
   kinematic body it would shove you around. `Physics.IgnoreCollision` is toggled on grab and
   restored on drop/freeze/throw/item-switch.

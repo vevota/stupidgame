@@ -51,10 +51,15 @@ namespace StupidGame
             bool lockFail = Cursor.lockState != CursorLockMode.Locked;
 
             string stance = _player.IsCrouching ? "crouch" : (_player.IsSprinting ? "sprint" : "walk");
+            string grip = _stick != null ? (_stick.LevelGrip ? "level" : "rigid") : "-";
+            string grab = _stick != null && _stick.LastGrabOffset > 0f
+                ? $"   grab={_stick.LastGrabOffset:0.00}m"
+                : "";
 
             string text =
                 $"{_root.level.name}   t={_root.runTime:0.0}s   falls={_root.falls}\n" +
-                $"item={item}   held={held}   {stance}   grounded={_player.Grounded}" +
+                $"item={item}   held={held}   {stance}   grounded={_player.Grounded}\n" +
+                $"grip={grip}{grab}" +
                 (lockFail ? "\n\n[mouse free - click to capture]" : "");
 
             if (_root.reachedGoal) text += "\n\nGOAL REACHED";
@@ -71,7 +76,7 @@ namespace StupidGame
 
             GUI.Label(
                 new Rect(16f, Screen.height - 34f, 1100f, 28f),
-                "WASD move   Shift sprint   Ctrl crouch   Space jump   1 fists   2 magneto   wheel cycle   LMB grab/drop   RMB freeze   F throw   R respawn   Esc free mouse",
+                "WASD move   Shift sprint   Ctrl crouch   Space jump (hold=bhop)   1 fists   2 magneto   wheel cycle   LMB grab/drop   RMB freeze   F throw   Q/E spin   V level   R respawn   Esc free mouse",
                 _small);
         }
     }

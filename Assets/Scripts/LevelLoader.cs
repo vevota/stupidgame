@@ -34,6 +34,7 @@ namespace StupidGame
             go.transform.SetParent(parent, false);
             go.transform.position = def.pos.V;
             go.transform.localScale = def.size.V;
+            go.transform.rotation = Quaternion.Euler(0f, def.rotY, 0f);
 
             go.AddComponent<Rigidbody>();
 

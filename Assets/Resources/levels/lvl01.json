@@ -28,7 +28,7 @@
   ],
 
   "props": [
-    { "name": "plank_a", "pos": { "x": 1.5, "y": 0.7, "z": 2.6 },  "size": { "x": 3.0, "y": 0.25, "z": 0.9 }, "mass": 7, "magnetic": true },
-    { "name": "plank_b", "pos": { "x": 1.5, "y": 0.7, "z": -2.6 }, "size": { "x": 3.0, "y": 0.25, "z": 0.9 }, "mass": 7, "magnetic": true }
+    { "name": "plank_a", "pos": { "x": 1.5, "y": 0.7, "z": 3.0 },  "size": { "x": 3.0, "y": 0.25, "z": 0.9 }, "rotY": 0,  "mass": 7, "magnetic": true },
+    { "name": "plank_b", "pos": { "x": 1.5, "y": 0.7, "z": -3.0 }, "size": { "x": 3.0, "y": 0.25, "z": 0.9 }, "rotY": 90, "mass": 7, "magnetic": true }
   ]
 }

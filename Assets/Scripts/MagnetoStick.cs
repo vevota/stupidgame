@@ -6,11 +6,11 @@ namespace StupidGame
 {
     /// <summary>
     /// The magneto stick. Only enabled while the magneto item is equipped.
-    /// LMB grab/drop, RMB freeze/unfreeze, F throw.
+    /// LMB grab/drop, RMB freeze/unfreeze, F throw, Q/E spin the held prop, V levels it.
     ///
-    /// Held props are anchored at the point you actually clicked, not at their centre, so a
-    /// plank hangs from the end you grabbed. Rotation follows yaw only: the prop spins as you
-    /// turn but never tilts with pitch, which keeps planks level and standable.
+    /// The clicked point is the pivot. The prop is rigidly attached to the camera by that
+    /// point, so grabbing a plank near its end swings very differently from grabbing it in
+    /// the middle. Nothing is re-centred and no axis is forced to the aim direction.
     /// </summary>
     public class MagnetoStick : MonoBehaviour
     {
@@ -20,9 +20,16 @@ namespace StupidGame
         public float followSharpness = 16f;
         public float throwSpeed = 12f;
         public float aimAssistRadius = 0.18f;
+        public float spinSpeed = 120f;
 
         public Prop Held { get; private set; }
         public Prop Aimed { get; private set; }
+
+        /// <summary>"level" keeps the held prop horizontal; rigid lets pitch tilt it.</summary>
+        public bool LevelGrip { get; private set; }
+
+        /// <summary>Distance from the prop's origin to the point you grabbed. Shown in the HUD.</summary>
+        public float LastGrabOffset { get; private set; }
 
         /// <summary>Fired when the stick grabs, freezes or throws — used for viewmodel kick.</summary>
         public event Action Used;
@@ -30,10 +37,13 @@ namespace StupidGame
         Camera _cam;
         Collider _selfCollider;
 
-        // Grab anchor, captured at pickup.
-        Vector3 _grabOffsetWorld;
-        Quaternion _grabRotation;
-        float _grabYaw;
+        // Grab state, captured at pickup.
+        Vector3 _localAnchor;
+        Vector3 _anchorScale;
+        Quaternion _grabRotInCam;
+        float _grabWorldYaw;
+        float _grabCamYaw;
+        float _yawOffset;
 
         Vector3 _aimPoint;
         bool _hasAimPoint;
@@ -76,20 +86,43 @@ namespace StupidGame
             }
 
             var kb = Keyboard.current;
-            if (kb != null && kb.fKey.wasPressedThisFrame && Held != null) ThrowHeld();
+            if (kb == null) return;
+
+            if (kb.fKey.wasPressedThisFrame && Held != null) ThrowHeld();
+            if (kb.vKey.wasPressedThisFrame) LevelGrip = !LevelGrip;
+
+            if (Held != null)
+            {
+                if (kb.qKey.isPressed) _yawOffset -= spinSpeed * Time.deltaTime;
+                if (kb.eKey.isPressed) _yawOffset += spinSpeed * Time.deltaTime;
+            }
         }
 
         void FixedUpdate()
         {
             if (Held == null) return;
 
-            // Yaw-only follow. Pitch is deliberately ignored so a held plank stays level.
-            float yawDelta = Mathf.DeltaAngle(_grabYaw, _cam.transform.eulerAngles.y);
-            Quaternion yawRot = Quaternion.Euler(0f, yawDelta, 0f);
-            Quaternion wantRot = yawRot * _grabRotation;
+            Quaternion wantRot;
+            if (LevelGrip)
+            {
+                // Horizontal only: the grab point still pivots, but the plank stays flat.
+                float yaw = _grabWorldYaw
+                            + Mathf.DeltaAngle(_grabCamYaw, _cam.transform.eulerAngles.y)
+                            + _yawOffset;
+                wantRot = Quaternion.Euler(0f, yaw, 0f);
+            }
+            else
+            {
+                // Rigid: the grabbed point is a real pivot, pitch included.
+                wantRot = Quaternion.Euler(0f, _yawOffset, 0f)
+                          * (_cam.transform.rotation * _grabRotInCam);
+            }
 
-            Vector3 anchor = _cam.transform.TransformPoint(new Vector3(0f, -holdDrop, holdDistance));
-            Vector3 wantPos = anchor - yawRot * _grabOffsetWorld;
+            // Rotate the local anchor into world space at the prop's current size, so the
+            // pivot stays exactly under the point we clicked.
+            Vector3 anchorOffset = wantRot * Vector3.Scale(_localAnchor, _anchorScale);
+            Vector3 anchorPos = _cam.transform.TransformPoint(new Vector3(0f, -holdDrop, holdDistance));
+            Vector3 wantPos = anchorPos - anchorOffset;
 
             float t = 1f - Mathf.Exp(-followSharpness * Time.fixedDeltaTime);
             Held.transform.position = Vector3.Lerp(Held.transform.position, wantPos, t);
@@ -137,7 +170,6 @@ namespace StupidGame
                 return best;
             }
 
-            // Aim assist: a thin ray alone is unforgiving on a 25 cm thick plank.
             if (Physics.SphereCast(origin, aimAssistRadius, dir, out var soft, range, mask, QueryTriggerInteraction.Ignore))
             {
                 if (IsValidTarget(soft.collider))
@@ -183,16 +215,23 @@ namespace StupidGame
             Aimed = null;
             if (Held.IsFrozen) Held.Unfreeze();
 
-            // Anchor at the exact point that was clicked, so the prop is held where you
-            // grabbed it instead of snapping its centre into your hands.
             Vector3 hit = _hasAimPoint ? _aimPoint : Held.transform.position;
-            _grabOffsetWorld = hit - Held.transform.position;
-            _grabRotation = Held.transform.rotation;
-            _grabYaw = _cam.transform.eulerAngles.y;
+            _localAnchor = Held.transform.InverseTransformPoint(hit);
+            _anchorScale = Held.transform.lossyScale;
+            _grabRotInCam = Quaternion.Inverse(_cam.transform.rotation) * Held.transform.rotation;
+            _grabWorldYaw = Held.transform.eulerAngles.y;
+            _grabCamYaw = _cam.transform.eulerAngles.y;
+            _yawOffset = 0f;
+
+            LastGrabOffset = (hit - Held.transform.position).magnitude;
 
             Held.BeginHold();
             SetIgnoreCollision(true);
             Used?.Invoke();
+
+            Debug.Log($"[stick] grab {Held.name} offset={LastGrabOffset:0.00}m " +
+                      $"localAnchor=({_localAnchor.x:0.00}, {_localAnchor.y:0.00}, {_localAnchor.z:0.00}) " +
+                      $"level={LevelGrip}");
         }
 
         void Drop()
@@ -240,8 +279,8 @@ namespace StupidGame
             SetAim(null);
         }
 
-        /// <summary>Held props can overlap your capsule when grabbed off-centre; without this
-        /// the kinematic plank shoves you around while you carry it.</summary>
+        /// <summary>Held props overlap your capsule when grabbed off-centre; without this the
+        /// kinematic plank shoves you around while you carry it.</summary>
         void SetIgnoreCollision(bool ignore)
         {
             if (_selfCollider == null) _selfCollider = GetComponent<Collider>();
