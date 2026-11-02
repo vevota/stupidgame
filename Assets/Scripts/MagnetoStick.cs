@@ -6,27 +6,29 @@ namespace StupidGame
 {
     /// <summary>
     /// The magneto stick. Only enabled while the magneto item is equipped.
-    /// LMB grab/drop, RMB freeze/unfreeze, F throw, Q/E spin the held prop, V levels it.
+    /// LMB grab/drop, RMB freeze/unfreeze, F throw, Q/E spin the held prop.
     ///
-    /// The clicked point is the pivot. The prop is rigidly attached to the camera by that
-    /// point, so grabbing a plank near its end swings very differently from grabbing it in
-    /// the middle. Nothing is re-centred and no axis is forced to the aim direction.
+    /// Grip model is deliberately Source-like rather than rigid:
+    ///  - the point you clicked stays the pivot, so grabs are not all identical
+    ///  - position follows on a spring, so the prop lags and has weight
+    ///  - rotation eases toward a level carry pose instead of being welded to the camera,
+    ///    so a badly-angled grab self-corrects instead of ruining a crossing
     /// </summary>
     public class MagnetoStick : MonoBehaviour
     {
         public float range = 7f;
         public float holdDistance = 2.4f;
         public float holdDrop = 0.12f;
-        public float followSharpness = 16f;
+        public float positionSharpness = 11f;
+        public float levelSharpness = 5f;
         public float throwSpeed = 12f;
         public float aimAssistRadius = 0.18f;
         public float spinSpeed = 120f;
+        public float inertiaLag = 0.025f;
+        public float maxInertiaLag = 0.25f;
 
         public Prop Held { get; private set; }
         public Prop Aimed { get; private set; }
-
-        /// <summary>"level" keeps the held prop horizontal; rigid lets pitch tilt it.</summary>
-        public bool LevelGrip { get; private set; }
 
         /// <summary>Distance from the prop's origin to the point you grabbed. Shown in the HUD.</summary>
         public float LastGrabOffset { get; private set; }
@@ -35,14 +37,13 @@ namespace StupidGame
         public event Action Used;
 
         Camera _cam;
+        PlayerMotor _player;
         Collider _selfCollider;
 
         // Grab state, captured at pickup.
         Vector3 _localAnchor;
         Vector3 _anchorScale;
-        Quaternion _grabRotInCam;
-        float _grabWorldYaw;
-        float _grabCamYaw;
+        float _grabYawOffset;
         float _yawOffset;
 
         Vector3 _aimPoint;
@@ -51,6 +52,7 @@ namespace StupidGame
         public void Init(Camera cam)
         {
             _cam = cam;
+            _player = GetComponent<PlayerMotor>();
             _selfCollider = GetComponent<Collider>();
         }
 
@@ -89,7 +91,6 @@ namespace StupidGame
             if (kb == null) return;
 
             if (kb.fKey.wasPressedThisFrame && Held != null) ThrowHeld();
-            if (kb.vKey.wasPressedThisFrame) LevelGrip = !LevelGrip;
 
             if (Held != null)
             {
@@ -102,31 +103,29 @@ namespace StupidGame
         {
             if (Held == null) return;
 
-            Quaternion wantRot;
-            if (LevelGrip)
-            {
-                // Horizontal only: the grab point still pivots, but the plank stays flat.
-                float yaw = _grabWorldYaw
-                            + Mathf.DeltaAngle(_grabCamYaw, _cam.transform.eulerAngles.y)
-                            + _yawOffset;
-                wantRot = Quaternion.Euler(0f, yaw, 0f);
-            }
-            else
-            {
-                // Rigid: the grabbed point is a real pivot, pitch included.
-                wantRot = Quaternion.Euler(0f, _yawOffset, 0f)
-                          * (_cam.transform.rotation * _grabRotInCam);
-            }
+            // Level carry pose: horizontal, yaw follows the view plus whatever offset the
+            // prop had when grabbed, plus manual spin.
+            float carryYaw = _cam.transform.eulerAngles.y + _grabYawOffset + _yawOffset;
+            Quaternion wantRot = Quaternion.Euler(0f, carryYaw, 0f);
 
-            // Rotate the local anchor into world space at the prop's current size, so the
-            // pivot stays exactly under the point we clicked.
+            // Keep the clicked point exactly on the hold point, whatever the rotation is.
             Vector3 anchorOffset = wantRot * Vector3.Scale(_localAnchor, _anchorScale);
             Vector3 anchorPos = _cam.transform.TransformPoint(new Vector3(0f, -holdDrop, holdDistance));
+
+            // Trailing weight: the prop lags behind when you walk or sprint.
+            if (_player != null && inertiaLag > 0f)
+            {
+                Vector3 lag = -_player.Velocity * inertiaLag;
+                anchorPos += Vector3.ClampMagnitude(lag, maxInertiaLag);
+            }
+
             Vector3 wantPos = anchorPos - anchorOffset;
 
-            float t = 1f - Mathf.Exp(-followSharpness * Time.fixedDeltaTime);
-            Held.transform.position = Vector3.Lerp(Held.transform.position, wantPos, t);
-            Held.transform.rotation = Quaternion.Slerp(Held.transform.rotation, wantRot, t);
+            float tp = 1f - Mathf.Exp(-positionSharpness * Time.fixedDeltaTime);
+            float tr = 1f - Mathf.Exp(-levelSharpness * Time.fixedDeltaTime);
+
+            Held.transform.position = Vector3.Lerp(Held.transform.position, wantPos, tp);
+            Held.transform.rotation = Quaternion.Slerp(Held.transform.rotation, wantRot, tr);
         }
 
         /// <summary>Camera forward with the pitch clamped — used for throwing only.</summary>
@@ -218,9 +217,7 @@ namespace StupidGame
             Vector3 hit = _hasAimPoint ? _aimPoint : Held.transform.position;
             _localAnchor = Held.transform.InverseTransformPoint(hit);
             _anchorScale = Held.transform.lossyScale;
-            _grabRotInCam = Quaternion.Inverse(_cam.transform.rotation) * Held.transform.rotation;
-            _grabWorldYaw = Held.transform.eulerAngles.y;
-            _grabCamYaw = _cam.transform.eulerAngles.y;
+            _grabYawOffset = Mathf.DeltaAngle(_cam.transform.eulerAngles.y, Held.transform.eulerAngles.y);
             _yawOffset = 0f;
 
             LastGrabOffset = (hit - Held.transform.position).magnitude;
@@ -230,8 +227,7 @@ namespace StupidGame
             Used?.Invoke();
 
             Debug.Log($"[stick] grab {Held.name} offset={LastGrabOffset:0.00}m " +
-                      $"localAnchor=({_localAnchor.x:0.00}, {_localAnchor.y:0.00}, {_localAnchor.z:0.00}) " +
-                      $"level={LevelGrip}");
+                      $"localAnchor=({_localAnchor.x:0.00}, {_localAnchor.y:0.00}, {_localAnchor.z:0.00})");
         }
 
         void Drop()

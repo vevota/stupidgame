@@ -20,6 +20,7 @@ namespace StupidGame
         public float jumpHeight = 2.1f;
         public float coyoteTime = 0.12f;
         public float jumpBufferTime = 0.12f;
+        public float jumpCooldown = 0.10f;
         public float fallMultiplier = 1.7f;
 
         public float standHeight = 1.8f;
@@ -39,6 +40,7 @@ namespace StupidGame
         CapsuleCollider _col;
         float _coyote;
         float _buffer;
+        float _jumpLock;
 
         void Awake()
         {
@@ -84,13 +86,16 @@ namespace StupidGame
 
         void FixedUpdate()
         {
+            _jumpLock -= Time.fixedDeltaTime;
+
             Grounded = ProbeGround();
             Vector3 vel = _rb.linearVelocity;
 
-            // Refill coyote only when grounded AND not rising. With bunny hop the jump buffer
-            // is re-armed every frame, so without this the held key re-jumps during the first
-            // frames of ascent while the ground probe still reports contact.
-            if (Grounded && vel.y <= 0.01f) _coyote = coyoteTime;
+            // Refill coyote whenever we have ground contact. Do NOT gate this on velocity:
+            // standing on a sloped or edge-of-plank surface makes depenetration push the
+            // capsule upward a little every frame, and the old velocity gate silently
+            // disabled jumping in exactly that case.
+            if (Grounded) _coyote = coyoteTime;
 
             Vector3 wish = WishDirection();
             Vector3 horiz = new Vector3(vel.x, 0f, vel.z);
@@ -101,10 +106,11 @@ namespace StupidGame
 
             float y = vel.y;
 
-            if (_buffer > 0f && _coyote > 0f && !IsCrouching)
+            if (_buffer > 0f && _coyote > 0f && _jumpLock <= 0f && !IsCrouching)
             {
                 _buffer = 0f;
                 _coyote = 0f;
+                _jumpLock = jumpCooldown;
                 y = Mathf.Sqrt(2f * Mathf.Abs(Physics.gravity.y) * jumpHeight);
             }
             else if (y < 0f)
@@ -163,26 +169,36 @@ namespace StupidGame
         {
             Bounds b = _col.bounds;
             float half = b.extents.y;
-            float r = Mathf.Min(b.extents.x, b.extents.z) * 0.75f;
-            Vector3 origin = b.center - Vector3.up * (half - 0.06f);
+            float r = Mathf.Min(b.extents.x, b.extents.z) * 0.85f;
+            Vector3 o = b.center - Vector3.up * (half - 0.06f);
+            float d = r * 0.7071f;
 
-            if (RayDown(origin)) return true;
-            if (RayDown(origin + new Vector3(r, 0f, 0f))) return true;
-            if (RayDown(origin + new Vector3(-r, 0f, 0f))) return true;
-            if (RayDown(origin + new Vector3(0f, 0f, r))) return true;
-            if (RayDown(origin + new Vector3(0f, 0f, -r))) return true;
+            if (RayDown(o)) return true;
+            if (RayDown(o + new Vector3(r, 0f, 0f))) return true;
+            if (RayDown(o + new Vector3(-r, 0f, 0f))) return true;
+            if (RayDown(o + new Vector3(0f, 0f, r))) return true;
+            if (RayDown(o + new Vector3(0f, 0f, -r))) return true;
+
+            // Diagonals: standing near the edge of a narrow or sloped plank often leaves every
+            // cardinal ray in the air even though one side is in contact.
+            if (RayDown(o + new Vector3(d, 0f, d))) return true;
+            if (RayDown(o + new Vector3(d, 0f, -d))) return true;
+            if (RayDown(o + new Vector3(-d, 0f, d))) return true;
+            if (RayDown(o + new Vector3(-d, 0f, -d))) return true;
             return false;
         }
 
         bool RayDown(Vector3 origin)
         {
-            var hits = Physics.RaycastAll(origin, Vector3.down, 0.45f, ~0, QueryTriggerInteraction.Ignore);
+            var hits = Physics.RaycastAll(origin, Vector3.down, 0.55f, ~0, QueryTriggerInteraction.Ignore);
             for (int i = 0; i < hits.Length; i++)
             {
                 var h = hits[i];
                 if (h.collider == _col) continue;
                 if (h.collider.transform.IsChildOf(transform)) continue;
-                if (h.normal.y >= 0.5f) return true;
+                // 0.35 accepts slopes up to ~70 degrees. The old 0.5 rejected anything
+                // steeper than 60, which is why tilted placed planks felt unjumpable.
+                if (h.normal.y >= 0.35f) return true;
             }
             return false;
         }

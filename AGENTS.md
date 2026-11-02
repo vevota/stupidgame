@@ -57,9 +57,13 @@ closed, because the editor holds a lock on the project.
   at pickup and the prop is placed so that exact point sits `holdDistance` in front of the
   camera. The grab point is a real pivot: grabbing a plank by its end must swing differently
   from grabbing it in the middle.
-- **Two grip modes.** Default `rigid` attaches the prop to the camera fully (pitch included),
-  so the pivot behaves physically. `V` toggles `level`, which forces the prop horizontal and
-  follows yaw only — that is the mode for placing flat platforms. HUD shows `grip=`.
+- **Grip is springy, not rigid.** Position follows on a spring anchored at the clicked point
+  (`positionSharpness`), so the prop lags and has weight. Rotation eases toward a *level*
+  carry pose (`levelSharpness`) instead of being welded to the camera, so a bad grab
+  self-corrects over ~0.4 s rather than wrecking a crossing. Trailing inertia comes from
+  `inertiaLag`.
+- **Escalation warning**: do not make the grip fully rigid again. A fully camera-locked prop
+  swings wildly on pitch, is hard to aim onto a gap, and fights the player mid-jump.
 - **Never re-orient a held prop to the aim.** Forcing the long axis along the view is what
   made every pickup look like a short-side grab (`HoldOrientation.For`, now superseded).
   Rotation comes from the camera plus `Q`/`E` spin only.
@@ -75,8 +79,13 @@ closed, because the editor holds a lock on the project.
   props feel broken. Never exclude the currently-aimed prop from target validation — doing
   so makes the aim latch flip every frame (flickering highlight, unclickable props).
 - **Bunny hop**: holding Space re-arms the jump buffer every frame, so you auto-jump on
-  landing. Coyote time refills only when grounded *and not rising*, otherwise a held key
-  re-jumps during the first frames of ascent.
+  landing. A `jumpCooldown` (0.1 s) prevents the held key re-firing during ascent.
+- **Grounding must not depend on velocity.** Coyote time refills on any ground contact. An
+  earlier version only refilled when `velocity.y <= 0`, which silently disabled jumping while
+  standing on tilted or edge-of-plank surfaces, because depenetration pushes the capsule up a
+  little each frame. Ground normals accept up to ~70° (`normal.y >= 0.35`), and the probe
+  fires 9 parallel down-rays including diagonals, because a narrow plank edge leaves all
+  cardinal rays in the air.
 
 - **Magnetism is physical**: only props with `magnetic: true` (visible metal) can be grabbed
   or frozen. Wood without metal is scenery you can carry, never float.
@@ -109,8 +118,8 @@ closed, because the editor holds a lock on the project.
 ## Controls
 
 WASD move · Shift sprint · Ctrl crouch · Space jump (hold = bunny hop) · 1 fists ·
-2 magneto · wheel cycle items · LMB grab/drop · RMB freeze/unfreeze · F throw · R respawn ·
-Esc free mouse, click to recapture.
+2 magneto · wheel cycle items · LMB grab/drop · RMB freeze/unfreeze · F throw ·
+Q/E spin held prop · R respawn · Esc free mouse, click to recapture.
 
 ## Current slice
 
