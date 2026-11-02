@@ -1,12 +1,11 @@
+// SUPERSEDED: this forced every held prop's long axis along the aim direction, which made
+// planks look like they were always grabbed by the short end and snapped into place.
+// MagnetoStick now anchors at the clicked point and follows yaw only.
+// Kept (not deleted) in case we add an explicit "align to aim" key later.
 using UnityEngine;
 
 namespace StupidGame
 {
-    /// <summary>
-    /// Held props are oriented by convention: the prop's local +X runs along the aim
-    /// direction and its local +Y is "up". Level props are authored with their long axis
-    /// on X and their thin axis on Y, which is what makes a plank standable.
-    /// </summary>
     public static class HoldOrientation
     {
         const float PlankAxisFix = -90f;

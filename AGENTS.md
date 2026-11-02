@@ -53,8 +53,16 @@ closed, because the editor holds a lock on the project.
 - **Items**: `ItemController` holds fist/magneto. `1` fists, `2` magneto, wheel cycles.
   Switching items calls `MagnetoStick.CancelHold()`, so the plank is dropped, never left
   attached to a disabled stick. Fists are deliberately an empty viewmodel.
-- **Held prop orientation**: local +X along aim, local +Y up (`HoldOrientation.For`). Props
-  are authored long-axis-on-X, thin-axis-on-Y so the flat face stays up and is standable.
+- **Held props are anchored at the clicked point**, not at their centre. `_grabOffsetWorld`
+  is captured at pickup and the prop is placed so that exact point sits `holdDistance` in
+  front of the camera. Grabbing a plank by its end must look like grabbing it by its end.
+- **Held rotation follows yaw only.** Pitching the view must never tilt a held plank, or you
+  cannot place a flat platform. Do not re-introduce an "align the long axis to the aim"
+  behaviour (`HoldOrientation.For` is superseded) — it is what made pickup look like it
+  snapped to the short side.
+- **Ignore collision while held.** A plank grabbed off-centre overlaps your capsule; as a
+  kinematic body it would shove you around. `Physics.IgnoreCollision` is toggled on grab and
+  restored on drop/freeze/throw/item-switch.
 - **Aim assist** is a 0.18 m sphere cast after the thin ray; a thin ray alone makes small
   props feel broken. Never exclude the currently-aimed prop from target validation — doing
   so makes the aim latch flip every frame (flickering highlight, unclickable props).
@@ -84,7 +92,7 @@ closed, because the editor holds a lock on the project.
 | `Assets/Scripts/PlayerMotor.cs` | rigidbody controller, ground probe, coyote/jump buffer |
 | `Assets/Scripts/FirstPersonLook.cs` | mouse look, cursor lock |
 | `Assets/Scripts/ItemSystem.cs` | fist/magneto slots + procedural viewmodels |
-| `Assets/Scripts/HoldOrientation.cs` | held-prop orientation convention |
+| `Assets/Scripts/HoldOrientation.cs` | SUPERSEDED, kept for a possible align-to-aim key |
 | `Assets/Scripts/FollowCamera.cs` | UNUSED, kept for a possible third-person toggle |
 | `Assets/Scripts/Hud.cs` | readouts + crosshair |
 | `Assets/Scripts/ScreenshotCapture.cs` | `-screenshot` / `-quitAfter` for headless capture |
@@ -92,9 +100,9 @@ closed, because the editor holds a lock on the project.
 
 ## Controls
 
-WASD move · Shift sprint · Ctrl crouch · Space jump · 1 fists · 2 magneto · wheel cycle
-items · LMB grab/drop · RMB freeze/unfreeze · F throw · R respawn · Esc free mouse, click
-to recapture.
+WASD move · Shift sprint · Ctrl crouch · Space jump (hold = bunny hop) · 1 fists ·
+2 magneto · wheel cycle items · LMB grab/drop · RMB freeze/unfreeze · F throw · R respawn ·
+Esc free mouse, click to recapture.
 
 ## Current slice
 
