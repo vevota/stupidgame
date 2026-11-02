@@ -10,6 +10,10 @@ namespace StupidGame
     /// </summary>
     public class FirstPersonLook : MonoBehaviour
     {
+        /// <summary>Set by MagnetoStick while the player is free-rotating a held prop, so
+        /// the mouse turns the prop instead of the camera.</summary>
+        public static bool SuppressLook;
+
         public PlayerMotor motor;
         public Transform player;
         public float sensitivity = 0.12f;
@@ -25,6 +29,7 @@ namespace StupidGame
             player = playerMotor != null ? playerMotor.transform : null;
             _yaw = startYaw;
             _pitch = 0f;
+            SuppressLook = false;
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
             Apply();
@@ -52,6 +57,7 @@ namespace StupidGame
 
             var m = Mouse.current;
             if (m == null) return;
+            if (SuppressLook) return;
 
             Vector2 d = m.delta.ReadValue();
             _yaw += d.x * sensitivity;

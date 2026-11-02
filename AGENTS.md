@@ -64,6 +64,15 @@ closed, because the editor holds a lock on the project.
   `inertiaLag`.
 - **Escalation warning**: do not make the grip fully rigid again. A fully camera-locked prop
   swings wildly on pitch, is hard to aim onto a gap, and fights the player mid-jump.
+- **The beam is world-space** (`MagnetoBeam`): a LineRenderer from near the stick to the grab
+  point when holding, or a thinner dimmer one to the aim point when only targeting. It must
+  render on the main camera, not the viewmodel layer — that camera has its own FOV, so a
+  viewmodel-space beam would not line up with the world. World-space also means geometry
+  occludes it correctly.
+- **The wheel is overloaded by context**: push/pull while holding, item cycling when empty.
+  `ItemController` bails when `_stick.Held != null`.
+- **`V` + mouse free-rotates the held prop** and sets `FirstPersonLook.SuppressLook`, or the
+  camera turns at the same time as the prop.
 - **Never re-orient a held prop to the aim.** Forcing the long axis along the view is what
   made every pickup look like a short-side grab (`HoldOrientation.For`, now superseded).
   Rotation comes from the camera plus `Q`/`E` spin only.
@@ -78,8 +87,8 @@ closed, because the editor holds a lock on the project.
 - **Aim assist** is a 0.18 m sphere cast after the thin ray; a thin ray alone makes small
   props feel broken. Never exclude the currently-aimed prop from target validation — doing
   so makes the aim latch flip every frame (flickering highlight, unclickable props).
-- **Bunny hop**: holding Space re-arms the jump buffer every frame, so you auto-jump on
-  landing. A `jumpCooldown` (0.1 s) prevents the held key re-firing during ascent.
+- **No bunny hop.** Jump needs a fresh press; the buffer only exists so a press slightly
+  before landing still counts. `jumpCooldown` (0.1 s) stops one press firing twice.
 - **Grounding must not depend on velocity.** Coyote time refills on any ground contact. An
   earlier version only refilled when `velocity.y <= 0`, which silently disabled jumping while
   standing on tilted or edge-of-plank surfaces, because depenetration pushes the capsule up a
@@ -109,6 +118,7 @@ closed, because the editor holds a lock on the project.
 | `Assets/Scripts/PlayerMotor.cs` | rigidbody controller, ground probe, coyote/jump buffer |
 | `Assets/Scripts/FirstPersonLook.cs` | mouse look, cursor lock |
 | `Assets/Scripts/ItemSystem.cs` | fist/magneto slots + procedural viewmodels |
+| `Assets/Scripts/MagnetoBeam.cs` | beam + impact tip, world space |
 | `Assets/Scripts/HoldOrientation.cs` | SUPERSEDED, kept for a possible align-to-aim key |
 | `Assets/Scripts/FollowCamera.cs` | UNUSED, kept for a possible third-person toggle |
 | `Assets/Scripts/Hud.cs` | readouts + crosshair |
@@ -117,9 +127,10 @@ closed, because the editor holds a lock on the project.
 
 ## Controls
 
-WASD move · Shift sprint · Ctrl crouch · Space jump (hold = bunny hop) · 1 fists ·
-2 magneto · wheel cycle items · LMB grab/drop · RMB freeze/unfreeze · F throw ·
-Q/E spin held prop · R respawn · Esc free mouse, click to recapture.
+WASD move · Shift sprint · Ctrl crouch · Space jump · 1 fists · 2 magneto ·
+wheel push/pull while holding, cycle items when empty · LMB grab/drop ·
+RMB freeze/unfreeze · V + mouse rotate held prop · Q/E spin · F throw · R respawn ·
+Esc free mouse, click to recapture.
 
 ## Current slice
 

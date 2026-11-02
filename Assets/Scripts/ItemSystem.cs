@@ -75,6 +75,9 @@ namespace StupidGame
             var m = Mouse.current;
             if (m != null && Cursor.lockState == CursorLockMode.Locked)
             {
+                // While a prop is held the wheel is push/pull, not item cycling.
+                if (_stick != null && _stick.Held != null) return;
+
                 float scroll = m.scroll.ReadValue().y;
                 if (Mathf.Abs(scroll) > 0.01f)
                 {

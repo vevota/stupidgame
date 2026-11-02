@@ -67,10 +67,9 @@ namespace StupidGame
             var kb = Keyboard.current;
             if (kb == null) return;
 
-            // Bunny hop: holding jump re-arms the buffer every frame, so the moment you
-            // touch ground the next jump fires. No double jumps, because jumping zeroes
-            // coyote and coyote is only refilled while grounded.
-            if (kb.spaceKey.isPressed) _buffer = jumpBufferTime;
+            // No bunny hop: jump requires a fresh press. The buffer still exists so a press
+            // slightly before landing is honoured, but holding the key does nothing.
+            if (kb.spaceKey.wasPressedThisFrame) _buffer = jumpBufferTime;
             _buffer -= Time.deltaTime;
             _coyote -= Time.deltaTime;
 

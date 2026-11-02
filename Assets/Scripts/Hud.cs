@@ -75,7 +75,7 @@ namespace StupidGame
 
             GUI.Label(
                 new Rect(16f, Screen.height - 34f, 1100f, 28f),
-                "WASD move   Shift sprint   Ctrl crouch   Space jump (hold=bhop)   1 fists   2 magneto   wheel cycle   LMB grab/drop   RMB freeze   F throw   Q/E spin   R respawn   Esc free mouse",
+                "WASD move   Shift sprint   Ctrl crouch   Space jump   1 fists   2 magneto   wheel push/pull (cycle)   LMB grab/drop   RMB freeze   V+mouse rotate   Q/E spin   F throw   R respawn   Esc free mouse",
                 _small);
         }
     }

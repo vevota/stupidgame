@@ -30,6 +30,18 @@ namespace StupidGame
             return mat;
         }
 
+        public static Material Unlit(Color c)
+        {
+            var shader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader == null) shader = Shader.Find("Unlit/Color");
+            if (shader == null) shader = Shader.Find("Sprites/Default");
+
+            var mat = new Material(shader);
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", c);
+            if (mat.HasProperty("_Color")) mat.SetColor("_Color", c);
+            return mat;
+        }
+
         public static Material Make(Color c)
         {
             // URP project: this is the shader that exists. "Standard" is only a fallback

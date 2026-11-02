@@ -21,6 +21,9 @@ namespace StupidGame
         public float holdDrop = 0.12f;
         public float positionSharpness = 11f;
         public float levelSharpness = 5f;
+        public float minHold = 1.2f;
+        public float scrollStep = 0.5f;
+        public float rotateSensitivity = 0.35f;
         public float throwSpeed = 12f;
         public float aimAssistRadius = 0.18f;
         public float spinSpeed = 120f;
@@ -45,6 +48,10 @@ namespace StupidGame
         Vector3 _anchorScale;
         float _grabYawOffset;
         float _yawOffset;
+        float _pitchOffset;
+        float _hold;
+
+        MagnetoBeam _beam;
 
         Vector3 _aimPoint;
         bool _hasAimPoint;
@@ -54,6 +61,11 @@ namespace StupidGame
             _cam = cam;
             _player = GetComponent<PlayerMotor>();
             _selfCollider = GetComponent<Collider>();
+            _hold = holdDistance;
+
+            var beamGo = new GameObject("MagnetoBeam");
+            _beam = beamGo.AddComponent<MagnetoBeam>();
+            _beam.Init();
         }
 
         void Update()
@@ -94,9 +106,57 @@ namespace StupidGame
 
             if (Held != null)
             {
+                // Push / pull with the wheel. Item cycling is suppressed while a prop is
+                // held (see ItemController), so the wheel means exactly one thing at a time.
+                float scroll = m.scroll.ReadValue().y;
+                if (Mathf.Abs(scroll) > 0.01f)
+                {
+                    _hold = Mathf.Clamp(_hold + Mathf.Sign(scroll) * scrollStep, minHold, range);
+                }
+
                 if (kb.qKey.isPressed) _yawOffset -= spinSpeed * Time.deltaTime;
                 if (kb.eKey.isPressed) _yawOffset += spinSpeed * Time.deltaTime;
+
+                // GMod-style free rotate: hold V and move the mouse; the camera holds still.
+                bool rotating = kb.vKey.isPressed;
+                FirstPersonLook.SuppressLook = rotating;
+                if (rotating)
+                {
+                    Vector2 d = m.delta.ReadValue();
+                    _yawOffset += d.x * rotateSensitivity;
+                    _pitchOffset = Mathf.Clamp(_pitchOffset - d.y * rotateSensitivity, -85f, 85f);
+                }
             }
+            else
+            {
+                FirstPersonLook.SuppressLook = false;
+            }
+        }
+
+        void LateUpdate()
+        {
+            if (_beam == null) return;
+
+            if (Held != null)
+            {
+                // Beam lands on the actual grab point, which is what the stick is holding.
+                Vector3 grabPoint = Held.transform.TransformPoint(_localAnchor);
+                _beam.Show(BeamOrigin(), grabPoint, 0.028f, true);
+            }
+            else if (Aimed != null && _hasAimPoint)
+            {
+                _beam.Show(BeamOrigin(), _aimPoint, 0.012f, false);
+            }
+            else
+            {
+                _beam.Hide();
+            }
+        }
+
+        Vector3 BeamOrigin()
+        {
+            if (_cam == null) return transform.position;
+            return _cam.transform.position + _cam.transform.rotation * new Vector3(0.14f, -0.10f, 0.40f);
         }
 
         void FixedUpdate()
@@ -106,11 +166,11 @@ namespace StupidGame
             // Level carry pose: horizontal, yaw follows the view plus whatever offset the
             // prop had when grabbed, plus manual spin.
             float carryYaw = _cam.transform.eulerAngles.y + _grabYawOffset + _yawOffset;
-            Quaternion wantRot = Quaternion.Euler(0f, carryYaw, 0f);
+            Quaternion wantRot = Quaternion.Euler(_pitchOffset, carryYaw, 0f);
 
             // Keep the clicked point exactly on the hold point, whatever the rotation is.
             Vector3 anchorOffset = wantRot * Vector3.Scale(_localAnchor, _anchorScale);
-            Vector3 anchorPos = _cam.transform.TransformPoint(new Vector3(0f, -holdDrop, holdDistance));
+            Vector3 anchorPos = _cam.transform.TransformPoint(new Vector3(0f, -holdDrop, _hold));
 
             // Trailing weight: the prop lags behind when you walk or sprint.
             if (_player != null && inertiaLag > 0f)
@@ -219,6 +279,8 @@ namespace StupidGame
             _anchorScale = Held.transform.lossyScale;
             _grabYawOffset = Mathf.DeltaAngle(_cam.transform.eulerAngles.y, Held.transform.eulerAngles.y);
             _yawOffset = 0f;
+            _pitchOffset = 0f;
+            _hold = holdDistance;
 
             LastGrabOffset = (hit - Held.transform.position).magnitude;
 
